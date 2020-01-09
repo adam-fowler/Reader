@@ -1,3 +1,3 @@
-# reader
+# Reader
 
-A description of this package.
+A String parser for swift.
