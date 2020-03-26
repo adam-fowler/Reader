@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reader object for parsing String buffers
-public class Reader {
+public class Reader<S: StringProtocol> {
     public enum Error : Swift.Error {
         case overflow
         case unexpected
@@ -10,13 +10,13 @@ public class Reader {
     
     /// Create a Reader object
     /// - Parameter string: String to parse
-    public init(_ string: String) {
+    public init(_ string: S) {
         self.buffer = string
         self.position = string.startIndex
     }
     
-    private let buffer: String
-    private var position: String.Index
+    private let buffer: S
+    private var position: S.Index
 }
 
 public extension Reader {
@@ -76,7 +76,7 @@ public extension Reader {
     /// - Parameter count: Number of characters to read
     /// - Throws: .overflow
     /// - Returns: The string read from the buffer
-    func read(count: Int) throws -> Substring {
+    func read(count: Int) throws -> S.SubSequence {
         guard buffer.distance(from: position, to: buffer.endIndex) >= count else { throw Error.overflow }
         let end = buffer.index(position, offsetBy: count)
         let subString = buffer[position..<end]
@@ -88,7 +88,7 @@ public extension Reader {
     /// - Parameter until: Character to read until
     /// - Throws: .overflow if we hit the end of the buffer before reading character
     /// - Returns: String read from buffer
-    @discardableResult func read(until: Character) throws -> Substring {
+    @discardableResult func read(until: Character) throws -> S.SubSequence {
         let startIndex = position
         while !reachedEnd() {
             if _current() == until {
@@ -103,7 +103,7 @@ public extension Reader {
     /// - Parameter until: String to check for
     /// - Throws: .overflow, .emptyString
     /// - Returns: String read from buffer
-    @discardableResult func read(until: String) throws -> Substring {
+    @discardableResult func read(until: String) throws -> S.SubSequence {
         guard until.count > 0 else { throw Error.emptyString }
         let startIndex = position
         var untilIndex = until.startIndex
@@ -130,7 +130,7 @@ public extension Reader {
     /// - Parameter keyPath: keyPath to check
     /// - Throws: .overflow
     /// - Returns: String read from buffer
-    @discardableResult func read(until keyPath: KeyPath<Character, Bool>) throws -> Substring {
+    @discardableResult func read(until keyPath: KeyPath<Character, Bool>) throws -> S.SubSequence {
         let startIndex = position
         while !reachedEnd() {
             if _current()[keyPath: keyPath] {
@@ -146,7 +146,7 @@ public extension Reader {
     /// - Parameter characterSet: Character set to check against
     /// - Throws: .overflow
     /// - Returns: String read from buffer
-    @discardableResult func read(until characterSet: Set<Character>) throws -> Substring {
+    @discardableResult func read(until characterSet: Set<Character>) throws -> S.SubSequence {
         let startIndex = position
         while !reachedEnd() {
             if characterSet.contains(_current()) {
@@ -160,7 +160,7 @@ public extension Reader {
     
     /// Read from buffer from current position until the end of the buffer
     /// - Returns: String read from buffer
-    @discardableResult func readUntilTheEnd() -> Substring {
+    @discardableResult func readUntilTheEnd() -> S.SubSequence {
         let startIndex = position
         position = buffer.endIndex
         return buffer[startIndex..<position]
@@ -182,7 +182,7 @@ public extension Reader {
     /// Read while keyPath on character at current position returns true is the one supplied
     /// - Parameter while: keyPath to check
     /// - Returns: String read from buffer
-    @discardableResult func read(while keyPath: KeyPath<Character, Bool>) -> Substring {
+    @discardableResult func read(while keyPath: KeyPath<Character, Bool>) -> S.SubSequence {
         let startIndex = position
         while !reachedEnd(),
             _current()[keyPath: keyPath] {
@@ -194,7 +194,7 @@ public extension Reader {
     /// Read while character at current position is in supplied set
     /// - Parameter while: character set to check
     /// - Returns: String read from buffer
-    @discardableResult func read(while characterSet: Set<Character>) -> Substring {
+    @discardableResult func read(while characterSet: Set<Character>) -> S.SubSequence {
         let startIndex = position
         while !reachedEnd(),
             characterSet.contains(_current()) {
