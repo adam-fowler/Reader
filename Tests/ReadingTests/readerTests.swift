@@ -1,5 +1,5 @@
 import XCTest
-@testable import reader
+@testable import Reading
 
 final class readerTests: XCTestCase {
     func testCharacter() {
@@ -10,38 +10,44 @@ final class readerTests: XCTestCase {
 
     func testSubstring() {
         let reader = Reader("TestString")
-        XCTAssertThrowsError(try reader.read(length: 23))
-        XCTAssertEqual(try reader.read(length: 3), "Tes")
-        XCTAssertEqual(try reader.read(length: 5), "tStri")
-        XCTAssertThrowsError(try reader.read(length: 3))
-        XCTAssertNoThrow(try reader.read(length: 2))
+        XCTAssertThrowsError(try reader.read(count: 23))
+        XCTAssertEqual(try reader.read(count: 3), "Tes")
+        XCTAssertEqual(try reader.read(count: 5), "tStri")
+        XCTAssertThrowsError(try reader.read(count: 3))
+        XCTAssertNoThrow(try reader.read(count: 2))
     }
 
     func testReadCharacter() {
         let reader = Reader("TestString")
         XCTAssertNoThrow(try reader.read("T"))
         XCTAssertNoThrow(try reader.read("e"))
-        XCTAssertThrowsError(try reader.read("e"))
+        XCTAssertEqual(try reader.read("e"), false)
     }
 
     func testReadUntilCharacter() throws {
         let reader = Reader("TestString")
         XCTAssertEqual(try reader.read(until:"S"), "Test")
-        XCTAssertEqual(try reader.read(until:"n"), "tri")
+        XCTAssertEqual(try reader.read(until:"n"), "Stri")
         XCTAssertThrowsError(try reader.read(until:"!"))
     }
 
     func testReadUntilKeyPath() throws {
         let reader = Reader("This 154 te5t")
-        XCTAssertEqual(reader.read(until:\.isWhitespace), "This")
-        XCTAssertEqual(reader.read(until:\.isLetter), " 154 ")
-        XCTAssertEqual(reader.read(until:\.isNewline), "te5t")
+        XCTAssertEqual(try reader.read(until:\.isWhitespace), "This")
+        XCTAssertEqual(try reader.read(until:\.isLetter), " 154 ")
+        XCTAssertThrowsError(try reader.read(until:\.isNewline), "te5t")
     }
 
     func testReadUntilCharacterSet() throws {
         let reader = Reader("TestString")
-        XCTAssertEqual(reader.read(until:Set("Sr")), "Test")
-        XCTAssertEqual(reader.read(until:Set("abcdefg")), "Strin")
+        XCTAssertEqual(try reader.read(until:Set("Sr")), "Test")
+        XCTAssertEqual(try reader.read(until:Set("abcdefg")), "Strin")
+    }
+
+    func testReadUntilString() throws {
+        let reader = Reader("/*check for *comment end*/")
+        XCTAssertEqual(try reader.read(until:"*/"), "/*check for *comment end")
+        XCTAssertTrue(try reader.read("*/"))
     }
 
     func testReadWhileCharacter() throws {
@@ -68,10 +74,26 @@ final class readerTests: XCTestCase {
         XCTAssertEqual(reader.read(while:Set("abcdef")), "de")
     }
 
+    func testRetreat() throws {
+        let reader = Reader("abcdef")
+        XCTAssertThrowsError(try reader.retreat())
+        _ = try reader.read(count: 4)
+        try reader.retreat(by: 3)
+        XCTAssertEqual(try reader.read(count: 4), "bcde")
+    }
+    
     static var allTests = [
         ("testCharacter", testCharacter),
         ("testSubstring", testSubstring),
         ("testReadCharacter", testReadCharacter),
+        ("testReadUntilCharacter", testReadUntilCharacter),
+        ("testReadUntilKeyPath", testReadUntilKeyPath),
+        ("testReadUntilCharacterSet", testReadUntilCharacterSet),
+        ("testReadUntilString", testReadUntilString),
+        ("testReadWhileCharacter", testReadWhileCharacter),
+        ("testReadWhileKeyPath", testReadWhileKeyPath),
+        ("testReadWhileCharacterSet", testReadWhileCharacterSet),
+        ("testRetreat", testRetreat),
     ]
 }
 
