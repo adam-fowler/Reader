@@ -20,7 +20,7 @@ public struct Parser {
         self.index = 0
     }
 
-    init(_ string: String) {
+    public init(_ string: String) {
         self.init(Array(string.utf8))
     }
 
@@ -162,24 +162,24 @@ public extension Parser {
     /// - Parameter until: String to check for
     /// - Throws: .overflow, .emptyString
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until: String, throwOnOverflow: Bool = true) throws -> String {
-        guard until.count > 0 else { throw Error.emptyString }
+    @discardableResult mutating func read(untilString: String, throwOnOverflow: Bool = true) throws -> String {
+        guard untilString.count > 0 else { throw Error.emptyString }
         let startIndex = index
         var foundIndex = index
-        var untilIndex = until.startIndex
+        var untilIndex = untilString.startIndex
         while !reachedEnd() {
-            if unsafeCurrent() == until[untilIndex] {
-                if untilIndex == until.startIndex {
+            if unsafeCurrent() == untilString[untilIndex] {
+                if untilIndex == untilString.startIndex {
                     foundIndex = index
                 }
-                untilIndex = until.index(after: untilIndex)
-                if untilIndex == until.endIndex {
+                untilIndex = untilString.index(after: untilIndex)
+                if untilIndex == untilString.endIndex {
                     index = foundIndex
                     let result = makeString(buffer[startIndex..<index])
                     return result
                 }
             } else {
-                untilIndex = until.startIndex
+                untilIndex = untilString.startIndex
             }
             unsafeAdvance()
         }
@@ -238,7 +238,7 @@ public extension Parser {
     mutating func scan(format: String) throws -> [String] {
         var result: [String] = []
         var formatReader = Parser(format)
-        let text = try formatReader.read(until: "%%", throwOnOverflow: false)
+        let text = try formatReader.read(untilString: "%%", throwOnOverflow: false)
         if text.count > 0 {
             guard try read(String(text)) else { throw Error.unexpected }
         }
@@ -246,10 +246,10 @@ public extension Parser {
         while !formatReader.reachedEnd() {
             formatReader.unsafeAdvance()
             formatReader.unsafeAdvance()
-            let text = try formatReader.read(until: "%%", throwOnOverflow: false)
+            let text = try formatReader.read(untilString: "%%", throwOnOverflow: false)
             let resultText: String
             if text.count > 0 {
-                resultText = try read(until: String(text))
+                resultText = try read(untilString: String(text))
             } else {
                 resultText = readUntilTheEnd()
             }
@@ -271,8 +271,8 @@ public extension Parser {
     /// Return the character at the current position
     /// - Throws: .overflow
     /// - Returns: Character
-    func current() throws -> Character {
-        guard !reachedEnd() else { throw Error.overflow }
+    func current() -> Character {
+        guard !reachedEnd() else { return Character(Unicode.Scalar(0)) }
         return unsafeCurrent()
     }
     
@@ -313,6 +313,10 @@ public extension Parser {
             amount -= 1
         }
     }
+
+    mutating func unsafeAdvance() {
+        index = skipUnicodeCharacter(at: index)
+    }
 }
 
 // internal versions without checks
@@ -325,10 +329,6 @@ private extension Parser {
         let (unicodeScalar, index) = decodeUnicodeCharacter(at: self.index)
         self.index = index
         return Character(unicodeScalar)
-    }
-    
-    mutating func unsafeAdvance() {
-        index = skipUnicodeCharacter(at: index)
     }
     
     mutating func unsafeAdvance(by amount: Int) {
