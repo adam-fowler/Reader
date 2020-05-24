@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reader object for parsing String buffers
-public struct Reader<S: StringProtocol> {
+public struct Parser<S: StringProtocol> {
     public enum Error : Swift.Error {
         case overflow
         case unexpected
@@ -29,7 +29,7 @@ public struct Reader<S: StringProtocol> {
     private var position: S.Index
 }
 
-public extension Reader {
+public extension Parser {
     
     /// Return current character
     /// - Throws: .overflow
@@ -228,7 +228,7 @@ public extension Reader {
     
     mutating func scan(format: String) throws -> [S.SubSequence] {
         var result: [S.SubSequence] = []
-        var formatReader = Reader<String>(format)
+        var formatReader = Parser<String>(format)
         let text = try formatReader.read(until: "%%", throwOnOverflow: false)
         if text.count > 0 {
             guard try read(String(text)) else { throw Error.unexpected }
@@ -257,7 +257,7 @@ public extension Reader {
 }
 
 /// Public versions of internal functions which include tests for overflow
-public extension Reader {
+public extension Parser {
     /// Return the character at the current position
     /// - Throws: .overflow
     /// - Returns: Character
@@ -298,7 +298,7 @@ public extension Reader {
 }
 
 // internal versions without checks
-private extension Reader {
+private extension Parser {
     func _current() -> Character {
         return buffer[position]
     }
