@@ -45,9 +45,9 @@ final class parserTests: XCTestCase {
     }
 
     func testReadUntilString() throws {
-        var parser = Parser("/*check for *comment end*/")
-        XCTAssertEqual(try parser.read(until:"*/"), "/*check for *comment end")
-        XCTAssertTrue(try parser.read("*/"))
+        var parser = Parser("<!-- check for -comment end -->")
+        XCTAssertEqual(try parser.read(until:"-->"), "<!-- check for -comment end ")
+        XCTAssertTrue(try parser.read("-->"))
     }
 
     func testReadWhileCharacter() throws {
@@ -107,11 +107,12 @@ final class parserTests: XCTestCase {
         XCTAssertThrowsError(try reader2.scan(format: "%% = %%"))
     }
     
+    
     static var allTests = [
         ("testCharacter", testCharacter),
         ("testSubstring", testSubstring),
         ("testReadCharacter", testReadCharacter),
-        ("testReadUntilCharacter", testReadUntilCharacter),
+/*        ("testReadUntilCharacter", testReadUntilCharacter),
         ("testReadUntilKeyPath", testReadUntilKeyPath),
         ("testReadUntilCharacterSet", testReadUntilCharacterSet),
         ("testReadUntilString", testReadUntilString),
@@ -121,7 +122,7 @@ final class parserTests: XCTestCase {
         ("testRetreat", testRetreat),
         ("testCopy", testCopy),
         ("testScan", testScan),
-        ("testScanError", testScanError),
+        ("testScanError", testScanError),*/
     ]
 }
 

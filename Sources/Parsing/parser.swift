@@ -1,33 +1,33 @@
 import Foundation
 
 /// Reader object for parsing String buffers
-public struct Parser<S: StringProtocol> {
+public struct Parser {
     public enum Error : Swift.Error {
         case overflow
         case unexpected
         case emptyString
+        case invalidCharacter
     }
     
-    /// internal storage used to store String
-    private class Storage {
-        init(_ buffer: S) {
+    /// Create a Parser object
+    /// - Parameter string: UTF8 data to parse
+    public init<Bytes: Collection>(_ utf8Data: Bytes)  where Bytes.Element == UInt8 {
+        if let buffer = utf8Data as? [UInt8] {
             self.buffer = buffer
+        } else {
+            self.buffer = Array(utf8Data)
         }
-        let buffer: S
+        self.index = 0
     }
 
-    private let _storage: Storage
-    
-    /// Create a Reader object
-    /// - Parameter string: String to parse
-    public init(_ string: S) {
-        self._storage = Storage(string)
-        self.position = string.startIndex
+    init(_ string: String) {
+        self.init(Array(string.utf8))
     }
-    
-    private var buffer: S { return _storage.buffer }
-    private var position: S.Index
+
+    private var buffer: [UInt8]
+    private var index: Int
 }
+
 
 public extension Parser {
     
@@ -36,9 +36,7 @@ public extension Parser {
     /// - Returns: Current character
     mutating func character() throws -> Character {
         guard !reachedEnd() else { throw Error.overflow }
-        let c = _current()
-        _advance()
-        return c
+        return unsafeCurrentAndAdvance()
     }
     
     /// Read the current character and return if it is as intended. If character test returns true then move forward 1
@@ -46,8 +44,9 @@ public extension Parser {
     /// - Throws: .overflow
     /// - Returns: If current character was the one we expected
     mutating func read(_ char: Character) throws -> Bool {
+        let initialIndex = index
         let c = try character()
-        guard c == char else { _retreat(); return false }
+        guard c == char else { self.index = initialIndex; return false }
         return true
     }
     
@@ -56,8 +55,9 @@ public extension Parser {
     /// - Throws: .overflow
     /// - Returns: If keyPath returned true
     mutating func read(_ keyPath: KeyPath<Character, Bool>) throws -> Bool {
+        let initialIndex = index
         let c = try character()
-        guard c[keyPath: keyPath] else { _retreat(); return false }
+        guard c[keyPath: keyPath] else { self.index = initialIndex; return false }
         return true
     }
     
@@ -66,8 +66,9 @@ public extension Parser {
     /// - Throws: .overflow
     /// - Returns: If current character is in character set
     mutating func read(_ characterSet: Set<Character>) throws -> Bool {
+        let initialIndex = index
         let c = try character()
-        guard characterSet.contains(c) else { _retreat(); return false }
+        guard characterSet.contains(c) else { self.index = initialIndex; return false }
         return true
     }
     
@@ -76,9 +77,10 @@ public extension Parser {
     /// - Throws: .overflow, .emptyString
     /// - Returns: If characters at current position equal string
     mutating func read(_ string: String) throws -> Bool {
+        let initialIndex = index
         guard string.count > 0 else { throw Error.emptyString }
         let subString = try read(count: string.count)
-        guard subString == string else { _retreat(by: string.count); return false }
+        guard subString == string else { self.index = initialIndex; return false }
         return true
     }
     
@@ -86,107 +88,114 @@ public extension Parser {
     /// - Parameter count: Number of characters to read
     /// - Throws: .overflow
     /// - Returns: The string read from the buffer
-    mutating func read(count: Int) throws -> S.SubSequence {
-        guard buffer.distance(from: position, to: buffer.endIndex) >= count else { throw Error.overflow }
-        let end = buffer.index(position, offsetBy: count)
-        let subString = buffer[position..<end]
-        _advance(by: count)
-        return subString
+    mutating func read(count: Int) throws -> String {
+        var count = count
+        var endIndex = index
+        while count > 0 {
+            guard endIndex != buffer.endIndex else { throw Error.overflow }
+            endIndex = skipUnicodeCharacter(at: endIndex)
+            count -= 1
+        }
+        let string = makeString(buffer[index..<endIndex])
+        index = endIndex
+        return string
     }
     
     /// Read from buffer until we hit a character. Position after this is of the character we were checking for
     /// - Parameter until: Character to read until
     /// - Throws: .overflow if we hit the end of the buffer before reading character
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until: Character, throwOnOverflow: Bool = true) throws -> S.SubSequence {
-        let startIndex = position
+    @discardableResult mutating func read(until: Character, throwOnOverflow: Bool = true) throws -> String {
+        let startIndex = index
         while !reachedEnd() {
-            if _current() == until {
-                return buffer[startIndex..<position]
+            if unsafeCurrent() == until {
+                return makeString(buffer[startIndex..<index])
             }
-            _advance()
+            unsafeAdvance()
         }
         if throwOnOverflow {
             _setPosition(startIndex)
             throw Error.overflow
         }
-        return buffer[startIndex..<position]
+        return makeString(buffer[startIndex..<index])
     }
-    
-    /// Read from buffer until we hit a string. Position after this is of the beginning of the string we were checking for
-    /// - Parameter until: String to check for
-    /// - Throws: .overflow, .emptyString
-    /// - Returns: String read from buffer
-    @discardableResult mutating func read(until: String, throwOnOverflow: Bool = true) throws -> S.SubSequence {
-        guard until.count > 0 else { throw Error.emptyString }
-        let startIndex = position
-        var untilIndex = until.startIndex
-        while !reachedEnd() {
-            if _current() == until[untilIndex] {
-                untilIndex = until.index(after: untilIndex)
-                if untilIndex == until.endIndex {
-                    if until.count > 1 {
-                        _retreat(by: until.count-1)
-                    }
-                    let result = buffer[startIndex..<position]
-                    return result
-                }
-            } else {
-                untilIndex = until.startIndex
-            }
-            _advance()
-        }
-        if throwOnOverflow {
-            _setPosition(startIndex)
-            throw Error.overflow
-        }
-        return buffer[startIndex..<position]
-    }
-    
+
     /// Read from buffer until keyPath on character returns true. Position after this is of the character we were checking for
     /// - Parameter keyPath: keyPath to check
     /// - Throws: .overflow
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until keyPath: KeyPath<Character, Bool>, throwOnOverflow: Bool = true) throws -> S.SubSequence {
-        let startIndex = position
+    @discardableResult mutating func read(until keyPath: KeyPath<Character, Bool>, throwOnOverflow: Bool = true) throws -> String {
+        let startIndex = index
         while !reachedEnd() {
-            if _current()[keyPath: keyPath] {
-                return buffer[startIndex..<position]
+            if unsafeCurrent()[keyPath: keyPath] {
+                return makeString(buffer[startIndex..<index])
             }
-            _advance()
+            unsafeAdvance()
         }
         if throwOnOverflow {
             _setPosition(startIndex)
             throw Error.overflow
         }
-        return buffer[startIndex..<position]
+        return makeString(buffer[startIndex..<index])
     }
     
     /// Read from buffer until we hit a character in supplied set. Position after this is of the character we were checking for
     /// - Parameter characterSet: Character set to check against
     /// - Throws: .overflow
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until characterSet: Set<Character>, throwOnOverflow: Bool = true) throws -> S.SubSequence {
-        let startIndex = position
+    @discardableResult mutating func read(until characterSet: Set<Character>, throwOnOverflow: Bool = true) throws -> String {
+        let startIndex = index
         while !reachedEnd() {
-            if characterSet.contains(_current()) {
-                return buffer[startIndex..<position]
+            if characterSet.contains(unsafeCurrent()) {
+                return makeString(buffer[startIndex..<index])
             }
-            _advance()
+            unsafeAdvance()
         }
         if throwOnOverflow {
             _setPosition(startIndex)
             throw Error.overflow
         }
-        return buffer[startIndex..<position]
+        return makeString(buffer[startIndex..<index])
+    }
+    
+    /// Read from buffer until we hit a string. Position after this is of the beginning of the string we were checking for
+    /// - Parameter until: String to check for
+    /// - Throws: .overflow, .emptyString
+    /// - Returns: String read from buffer
+    @discardableResult mutating func read(until: String, throwOnOverflow: Bool = true) throws -> String {
+        guard until.count > 0 else { throw Error.emptyString }
+        let startIndex = index
+        var foundIndex = index
+        var untilIndex = until.startIndex
+        while !reachedEnd() {
+            if unsafeCurrent() == until[untilIndex] {
+                if untilIndex == until.startIndex {
+                    foundIndex = index
+                }
+                untilIndex = until.index(after: untilIndex)
+                if untilIndex == until.endIndex {
+                    index = foundIndex
+                    let result = makeString(buffer[startIndex..<index])
+                    return result
+                }
+            } else {
+                untilIndex = until.startIndex
+            }
+            unsafeAdvance()
+        }
+        if throwOnOverflow {
+            _setPosition(startIndex)
+            throw Error.overflow
+        }
+        return makeString(buffer[startIndex..<index])
     }
     
     /// Read from buffer from current position until the end of the buffer
     /// - Returns: String read from buffer
-    @discardableResult mutating func readUntilTheEnd() -> S.SubSequence {
-        let startIndex = position
-        position = buffer.endIndex
-        return buffer[startIndex..<position]
+    @discardableResult mutating func readUntilTheEnd() -> String {
+        let startIndex = index
+        index = buffer.endIndex
+        return makeString(buffer[startIndex..<index])
     }
     
     /// Read while character at current position is the one supplied
@@ -195,8 +204,8 @@ public extension Parser {
     @discardableResult mutating func read(while: Character) -> Int {
         var count = 0
         while !reachedEnd(),
-            _current() == `while` {
-            _advance()
+            unsafeCurrent() == `while` {
+            unsafeAdvance()
             count += 1
         }
         return count
@@ -205,45 +214,46 @@ public extension Parser {
     /// Read while keyPath on character at current position returns true is the one supplied
     /// - Parameter while: keyPath to check
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(while keyPath: KeyPath<Character, Bool>) -> S.SubSequence {
-        let startIndex = position
+    @discardableResult mutating func read(while keyPath: KeyPath<Character, Bool>) -> String {
+        let startIndex = index
         while !reachedEnd(),
-            _current()[keyPath: keyPath] {
-            _advance()
+            unsafeCurrent()[keyPath: keyPath] {
+            unsafeAdvance()
         }
-        return buffer[startIndex..<position]
+        return makeString(buffer[startIndex..<index])
     }
     
     /// Read while character at current position is in supplied set
     /// - Parameter while: character set to check
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(while characterSet: Set<Character>) -> S.SubSequence {
-        let startIndex = position
+    @discardableResult mutating func read(while characterSet: Set<Character>) -> String {
+        let startIndex = index
         while !reachedEnd(),
-            characterSet.contains(_current()) {
-            _advance()
+            characterSet.contains(unsafeCurrent()) {
+            unsafeAdvance()
         }
-        return buffer[startIndex..<position]
+        return makeString(buffer[startIndex..<index])
     }
     
-    mutating func scan(format: String) throws -> [S.SubSequence] {
-        var result: [S.SubSequence] = []
-        var formatReader = Parser<String>(format)
+    mutating func scan(format: String) throws -> [String] {
+        var result: [String] = []
+        var formatReader = Parser(format)
         let text = try formatReader.read(until: "%%", throwOnOverflow: false)
         if text.count > 0 {
             guard try read(String(text)) else { throw Error.unexpected }
         }
         
         while !formatReader.reachedEnd() {
-            formatReader._advance(by: 2)
+            formatReader.unsafeAdvance()
+            formatReader.unsafeAdvance()
             let text = try formatReader.read(until: "%%", throwOnOverflow: false)
-            let resultText: S.SubSequence
+            let resultText: String
             if text.count > 0 {
                 resultText = try read(until: String(text))
             } else {
                 resultText = readUntilTheEnd()
             }
-            _advance(by: text.count)
+            unsafeAdvance(by: text.count)
             result.append(resultText)
         }
         return result
@@ -252,7 +262,7 @@ public extension Parser {
     /// Return whether we have reached the end of the buffer
     /// - Returns: Have we reached the end
     func reachedEnd() -> Bool {
-        return position == buffer.endIndex
+        return index == buffer.endIndex
     }
 }
 
@@ -263,63 +273,126 @@ public extension Parser {
     /// - Returns: Character
     func current() throws -> Character {
         guard !reachedEnd() else { throw Error.overflow }
-        return _current()
+        return unsafeCurrent()
     }
     
     /// Move forward one character
     /// - Throws: .overflow
     mutating func advance() throws {
         guard !reachedEnd() else { throw Error.overflow }
-        return _advance()
-    }
-    
-    /// Move back one character
-    /// - Throws: .overflow
-    mutating func retreat() throws {
-        guard position != buffer.startIndex else { throw Error.overflow }
-        return _retreat()
+        return unsafeAdvance()
     }
     
     /// Move forward so many character
     /// - Parameter amount: number of characters to move forward
     /// - Throws: .overflow
     mutating func advance(by amount: Int) throws {
-        guard buffer.distance(from: position, to: buffer.endIndex) >= amount else { throw Error.overflow }
-        return _advance(by: amount)
+        var amount = amount
+        while amount > 0 {
+            guard !reachedEnd() else { throw Error.overflow }
+            index = skipUnicodeCharacter(at: index)
+            amount -= 1
+        }
+    }
+    
+    /// Move backwards one character
+    /// - Throws: .overflow
+    mutating func retreat() throws {
+        guard index != 0 else { throw Error.overflow }
+        index = backOneUnicodeCharacter(at: index)
     }
     
     /// Move back so many characters
     /// - Parameter amount: number of characters to move back
     /// - Throws: .overflow
     mutating func retreat(by amount: Int) throws {
-        guard buffer.distance(from: buffer.startIndex, to: position) >= amount else { throw Error.overflow }
-        return _retreat(by: amount)
+        var amount = amount
+        while amount > 0 {
+            guard index != 0 else { throw Error.overflow }
+            index = backOneUnicodeCharacter(at: index)
+            amount -= 1
+        }
     }
 }
 
 // internal versions without checks
 private extension Parser {
-    func _current() -> Character {
-        return buffer[position]
+    func unsafeCurrent() -> Character {
+        return Character(decodeUnicodeCharacter(at: index).0)
     }
     
-    mutating func _advance() {
-        position = buffer.index(after: position)
+    mutating func unsafeCurrentAndAdvance() -> Character {
+        let (unicodeScalar, index) = decodeUnicodeCharacter(at: self.index)
+        self.index = index
+        return Character(unicodeScalar)
     }
     
-    mutating func _retreat() {
-        position = buffer.index(before: position)
+    mutating func unsafeAdvance() {
+        index = skipUnicodeCharacter(at: index)
     }
     
-    mutating func _advance(by amount: Int) {
-        position = buffer.index(position, offsetBy: amount)
+    mutating func unsafeAdvance(by amount: Int) {
+        var amount = amount
+        while amount > 0 {
+            index = skipUnicodeCharacter(at: index)
+            amount -= 1
+        }
     }
     
-    mutating func _retreat(by amount: Int) {
-        position = buffer.index(position, offsetBy: -amount)
+    mutating func _setPosition(_ index: Int) {
+        self.index = index
+    }
+
+    func makeString<Bytes: Collection>(_ bytes: Bytes) -> String where Bytes.Element == UInt8, Bytes.Index == Int {
+        if let string = bytes.withContiguousStorageIfAvailable({ String(decoding: $0, as: Unicode.UTF8.self)}) {
+          return string
+        }
+        else {
+          return String(decoding: bytes, as: Unicode.UTF8.self)
+        }
+    }}
+
+
+extension Parser {
+    
+    func decodeUnicodeCharacter(at index: Int) -> (Unicode.Scalar, Int) {
+        var index = index
+        let byte1 = UInt32(buffer[index])
+        var value: UInt32
+        if byte1 & 0xc0 == 0xc0 {
+            index += 1
+            let byte2 = UInt32(buffer[index] & 0x3f)
+            if byte1 & 0xe0 == 0xe0 {
+                index += 1
+                let byte3 = UInt32(buffer[index] & 0x3f)
+                if byte1 & 0xf0 == 0xf0 {
+                    index += 1
+                    let byte4 = UInt32(buffer[index] & 0x3f)
+                    value = (byte1 & 0x7) << 18 + byte2 << 12 + byte3 << 6 + byte4
+                } else {
+                    value = (byte1 & 0xf) << 12 + byte2 << 6 + byte3
+                }
+            } else {
+                value = (byte1 & 0x1f) << 6 + byte2
+            }
+        } else {
+            value = byte1 & 0x7f
+        }
+        /*guard*/ let unicodeScalar = Unicode.Scalar(value)! /*else { throw Error.invalidCharacter }*/
+        return (unicodeScalar, index + 1)
     }
     
-    mutating func _setPosition(_ position: String.Index) {
-        self.position = position
+    func skipUnicodeCharacter(at index: Int) -> Int {
+        if buffer[index] & 0x80 != 0x80 { return index + 1 }
+        if buffer[index+1] & 0xc0 == 0x80 { return index + 2 }
+        if buffer[index+2] & 0xc0 == 0x80 { return index + 3 }
+        return index + 4
+    }
+    
+    func backOneUnicodeCharacter(at index: Int) -> Int {
+        if buffer[index-1] & 0xc0 != 0x80 { return index - 1 }
+        if buffer[index-2] & 0xc0 != 0x80 { return index - 2 }
+        if buffer[index-3] & 0xc0 != 0x80 { return index - 3 }
+        return index - 4
     }
 }
