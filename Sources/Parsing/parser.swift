@@ -158,6 +158,25 @@ public extension Parser {
         return makeString(buffer[startIndex..<index])
     }
     
+    /// Read from buffer until we hit a character in supplied set. Position after this is of the character we were checking for
+    /// - Parameter characterSet: Character set to check against
+    /// - Throws: .overflow
+    /// - Returns: String read from buffer
+    @discardableResult mutating func read(until: (Character) -> Bool, throwOnOverflow: Bool = true) throws -> String {
+        let startIndex = index
+        while !reachedEnd() {
+            if until(unsafeCurrent()) {
+                return makeString(buffer[startIndex..<index])
+            }
+            unsafeAdvance()
+        }
+        if throwOnOverflow {
+            _setPosition(startIndex)
+            throw Error.overflow
+        }
+        return makeString(buffer[startIndex..<index])
+    }
+    
     /// Read from buffer until we hit a string. Position after this is of the beginning of the string we were checking for
     /// - Parameter until: String to check for
     /// - Throws: .overflow, .emptyString
@@ -230,6 +249,18 @@ public extension Parser {
         let startIndex = index
         while !reachedEnd(),
             characterSet.contains(unsafeCurrent()) {
+            unsafeAdvance()
+        }
+        return makeString(buffer[startIndex..<index])
+    }
+    
+    /// Read while character at current position is in supplied set
+    /// - Parameter while: character set to check
+    /// - Returns: String read from buffer
+    @discardableResult mutating func read(while: (Character) -> Bool) -> String {
+        let startIndex = index
+        while !reachedEnd(),
+            `while`(unsafeCurrent()) {
             unsafeAdvance()
         }
         return makeString(buffer[startIndex..<index])
