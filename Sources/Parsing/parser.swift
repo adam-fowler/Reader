@@ -34,7 +34,7 @@ public extension Parser {
     /// Return current character
     /// - Throws: .overflow
     /// - Returns: Current character
-    mutating func character() throws -> Character {
+    mutating func character() throws -> Unicode.Scalar {
         guard !reachedEnd() else { throw Error.overflow }
         return unsafeCurrentAndAdvance()
     }
@@ -43,21 +43,10 @@ public extension Parser {
     /// - Parameter char: character to compare against
     /// - Throws: .overflow
     /// - Returns: If current character was the one we expected
-    mutating func read(_ char: Character) throws -> Bool {
+    mutating func read(_ char: Unicode.Scalar) throws -> Bool {
         let initialIndex = index
         let c = try character()
         guard c == char else { self.index = initialIndex; return false }
-        return true
-    }
-    
-    /// Read the current character and check if keyPath is true for it If character test returns true then move forward 1
-    /// - Parameter keyPath: KeyPath to check
-    /// - Throws: .overflow
-    /// - Returns: If keyPath returned true
-    mutating func read(_ keyPath: KeyPath<Character, Bool>) throws -> Bool {
-        let initialIndex = index
-        let c = try character()
-        guard c[keyPath: keyPath] else { self.index = initialIndex; return false }
         return true
     }
     
@@ -65,7 +54,7 @@ public extension Parser {
     /// - Parameter characterSet: Set of characters to compare against
     /// - Throws: .overflow
     /// - Returns: If current character is in character set
-    mutating func read(_ characterSet: Set<Character>) throws -> Bool {
+    mutating func read(_ characterSet: Set<Unicode.Scalar>) throws -> Bool {
         let initialIndex = index
         let c = try character()
         guard characterSet.contains(c) else { self.index = initialIndex; return false }
@@ -102,10 +91,10 @@ public extension Parser {
     }
     
     /// Read from buffer until we hit a character. Position after this is of the character we were checking for
-    /// - Parameter until: Character to read until
+    /// - Parameter until: Unicode.Scalar to read until
     /// - Throws: .overflow if we hit the end of the buffer before reading character
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until: Character, throwOnOverflow: Bool = true) throws -> String {
+    @discardableResult mutating func read(until: Unicode.Scalar, throwOnOverflow: Bool = true) throws -> String {
         let startIndex = index
         while !reachedEnd() {
             if unsafeCurrent() == until {
@@ -120,30 +109,11 @@ public extension Parser {
         return makeString(buffer[startIndex..<index])
     }
 
-    /// Read from buffer until keyPath on character returns true. Position after this is of the character we were checking for
-    /// - Parameter keyPath: keyPath to check
-    /// - Throws: .overflow
-    /// - Returns: String read from buffer
-    @discardableResult mutating func read(until keyPath: KeyPath<Character, Bool>, throwOnOverflow: Bool = true) throws -> String {
-        let startIndex = index
-        while !reachedEnd() {
-            if unsafeCurrent()[keyPath: keyPath] {
-                return makeString(buffer[startIndex..<index])
-            }
-            unsafeAdvance()
-        }
-        if throwOnOverflow {
-            _setPosition(startIndex)
-            throw Error.overflow
-        }
-        return makeString(buffer[startIndex..<index])
-    }
-    
     /// Read from buffer until we hit a character in supplied set. Position after this is of the character we were checking for
-    /// - Parameter characterSet: Character set to check against
+    /// - Parameter characterSet: Unicode.Scalar set to check against
     /// - Throws: .overflow
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until characterSet: Set<Character>, throwOnOverflow: Bool = true) throws -> String {
+    @discardableResult mutating func read(until characterSet: Set<Unicode.Scalar>, throwOnOverflow: Bool = true) throws -> String {
         let startIndex = index
         while !reachedEnd() {
             if characterSet.contains(unsafeCurrent()) {
@@ -159,10 +129,10 @@ public extension Parser {
     }
     
     /// Read from buffer until we hit a character in supplied set. Position after this is of the character we were checking for
-    /// - Parameter characterSet: Character set to check against
+    /// - Parameter characterSet: Unicode.Scalar set to check against
     /// - Throws: .overflow
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(until: (Character) -> Bool, throwOnOverflow: Bool = true) throws -> String {
+    @discardableResult mutating func read(until: (Unicode.Scalar) -> Bool, throwOnOverflow: Bool = true) throws -> String {
         let startIndex = index
         while !reachedEnd() {
             if until(unsafeCurrent()) {
@@ -182,31 +152,34 @@ public extension Parser {
     /// - Throws: .overflow, .emptyString
     /// - Returns: String read from buffer
     @discardableResult mutating func read(untilString: String, throwOnOverflow: Bool = true) throws -> String {
-        guard untilString.count > 0 else { throw Error.emptyString }
-        let startIndex = index
-        var foundIndex = index
-        var untilIndex = untilString.startIndex
-        while !reachedEnd() {
-            if unsafeCurrent() == untilString[untilIndex] {
-                if untilIndex == untilString.startIndex {
-                    foundIndex = index
+        var untilString = untilString
+        return try untilString.withUTF8 { utf8 in
+            guard utf8.count > 0 else { throw Error.emptyString }
+            let startIndex = index
+            var foundIndex = index
+            var untilIndex = 0
+            while !reachedEnd() {
+                if buffer[index] == utf8[untilIndex] {
+                    if untilIndex == 0 {
+                        foundIndex = index
+                    }
+                    untilIndex += 1
+                    if untilIndex == utf8.endIndex {
+                        index = foundIndex
+                        let result = makeString(buffer[startIndex..<index])
+                        return result
+                    }
+                } else {
+                    untilIndex = 0
                 }
-                untilIndex = untilString.index(after: untilIndex)
-                if untilIndex == untilString.endIndex {
-                    index = foundIndex
-                    let result = makeString(buffer[startIndex..<index])
-                    return result
-                }
-            } else {
-                untilIndex = untilString.startIndex
+                index += 1
             }
-            unsafeAdvance()
+            if throwOnOverflow {
+                _setPosition(startIndex)
+                throw Error.overflow
+            }
+            return makeString(buffer[startIndex..<index])
         }
-        if throwOnOverflow {
-            _setPosition(startIndex)
-            throw Error.overflow
-        }
-        return makeString(buffer[startIndex..<index])
     }
     
     /// Read from buffer from current position until the end of the buffer
@@ -218,9 +191,9 @@ public extension Parser {
     }
     
     /// Read while character at current position is the one supplied
-    /// - Parameter while: Character to check against
+    /// - Parameter while: Unicode.Scalar to check against
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(while: Character) -> Int {
+    @discardableResult mutating func read(while: Unicode.Scalar) -> Int {
         var count = 0
         while !reachedEnd(),
             unsafeCurrent() == `while` {
@@ -230,22 +203,10 @@ public extension Parser {
         return count
     }
 
-    /// Read while keyPath on character at current position returns true is the one supplied
-    /// - Parameter while: keyPath to check
-    /// - Returns: String read from buffer
-    @discardableResult mutating func read(while keyPath: KeyPath<Character, Bool>) -> String {
-        let startIndex = index
-        while !reachedEnd(),
-            unsafeCurrent()[keyPath: keyPath] {
-            unsafeAdvance()
-        }
-        return makeString(buffer[startIndex..<index])
-    }
-    
     /// Read while character at current position is in supplied set
     /// - Parameter while: character set to check
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(while characterSet: Set<Character>) -> String {
+    @discardableResult mutating func read(while characterSet: Set<Unicode.Scalar>) -> String {
         let startIndex = index
         while !reachedEnd(),
             characterSet.contains(unsafeCurrent()) {
@@ -257,7 +218,7 @@ public extension Parser {
     /// Read while character at current position is in supplied set
     /// - Parameter while: character set to check
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(while: (Character) -> Bool) -> String {
+    @discardableResult mutating func read(while: (Unicode.Scalar) -> Bool) -> String {
         let startIndex = index
         while !reachedEnd(),
             `while`(unsafeCurrent()) {
@@ -301,9 +262,9 @@ public extension Parser {
 public extension Parser {
     /// Return the character at the current position
     /// - Throws: .overflow
-    /// - Returns: Character
-    func current() -> Character {
-        guard !reachedEnd() else { return Character(Unicode.Scalar(0)) }
+    /// - Returns: Unicode.Scalar
+    func current() -> Unicode.Scalar {
+        guard !reachedEnd() else { return Unicode.Scalar(0) }
         return unsafeCurrent()
     }
     
@@ -352,14 +313,15 @@ public extension Parser {
 
 // internal versions without checks
 private extension Parser {
-    func unsafeCurrent() -> Character {
-        return Character(decodeUnicodeCharacter(at: index).0)
+
+    func unsafeCurrent() -> Unicode.Scalar {
+        return decodeUnicodeCharacter(at: index).0
     }
     
-    mutating func unsafeCurrentAndAdvance() -> Character {
+    mutating func unsafeCurrentAndAdvance() -> Unicode.Scalar {
         let (unicodeScalar, index) = decodeUnicodeCharacter(at: self.index)
         self.index = index
-        return Character(unicodeScalar)
+        return unicodeScalar
     }
     
     mutating func unsafeAdvance(by amount: Int) {
@@ -425,5 +387,11 @@ extension Parser {
         if buffer[index-2] & 0xc0 != 0x80 { return index - 2 }
         if buffer[index-3] & 0xc0 != 0x80 { return index - 3 }
         return index - 4
+    }
+}
+
+extension Set where Element == Unicode.Scalar {
+    public init(_ string: String) {
+        self = Set(string.unicodeScalars)
     }
 }

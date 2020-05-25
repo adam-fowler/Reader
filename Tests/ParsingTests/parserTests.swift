@@ -31,13 +31,6 @@ final class parserTests: XCTestCase {
         XCTAssertThrowsError(try parser.read(until:"!"))
     }
 
-    func testReadUntilKeyPath() throws {
-        var parser = Parser("This 154 te5t")
-        XCTAssertEqual(try parser.read(until:\.isWhitespace), "This")
-        XCTAssertEqual(try parser.read(until:\.isLetter), " 154 ")
-        XCTAssertThrowsError(try parser.read(until:\.isNewline), "te5t")
-    }
-
     func testReadUntilCharacterSet() throws {
         var parser = Parser("TestString")
         XCTAssertEqual(try parser.read(until:Set("Sr")), "Test")
@@ -46,7 +39,7 @@ final class parserTests: XCTestCase {
 
     func testReadUntilString() throws {
         var parser = Parser("<!-- check for -comment end -->")
-        XCTAssertEqual(try parser.read(until:"-->"), "<!-- check for -comment end ")
+        XCTAssertEqual(try parser.read(untilString:"-->"), "<!-- check for -comment end ")
         XCTAssertTrue(try parser.read("-->"))
     }
 
@@ -55,16 +48,6 @@ final class parserTests: XCTestCase {
         XCTAssertEqual(parser.read(while:"1"), 1)
         XCTAssertEqual(parser.read(while:"2"), 2)
         XCTAssertEqual(parser.read(while:"3"), 3)
-    }
-
-    func testReadWhileKeyPath() throws {
-        var parser = Parser("This 154 te5t")
-        XCTAssertEqual(parser.read(while:\.isLetter), "This")
-        XCTAssertEqual(parser.read(while:\.isWhitespace), " ")
-        XCTAssertEqual(parser.read(while:\.isLetter), "")
-        XCTAssertEqual(parser.read(while:\.isNumber), "154")
-        XCTAssertEqual(parser.read(while:\.isWhitespace), " ")
-        XCTAssertEqual(parser.read(while:\.isAlphaNumeric), "te5t")
     }
 
     func testReadWhileCharacterSet() throws {
