@@ -11,8 +11,8 @@ final class ParserTests: XCTestCase {
     func testSubstring() {
         var parser = Parser("TestString")
         XCTAssertThrowsError(try parser.read(count: 23))
-        XCTAssertEqual(try parser.read(count: 3), "Tes")
-        XCTAssertEqual(try parser.read(count: 5), "tStri")
+        XCTAssertEqual(try parser.read(count: 3).string, "Tes")
+        XCTAssertEqual(try parser.read(count: 5).string, "tStri")
         XCTAssertThrowsError(try parser.read(count: 3))
         XCTAssertNoThrow(try parser.read(count: 2))
     }
@@ -62,15 +62,15 @@ final class ParserTests: XCTestCase {
         XCTAssertThrowsError(try parser.retreat())
         _ = try parser.read(count: 4)
         try parser.retreat(by: 3)
-        XCTAssertEqual(try parser.read(count: 4), "bcde")
+        XCTAssertEqual(try parser.read(count: 4).string, "bcde")
     }
     
     func testCopy() throws {
         var parser = Parser("abcdef")
-        XCTAssertEqual(try parser.read(count: 3), "abc")
+        XCTAssertEqual(try parser.read(count: 3).string, "abc")
         var reader2 = parser
-        XCTAssertEqual(try parser.read(count: 3), "def")
-        XCTAssertEqual(try reader2.read(count: 3), "def")
+        XCTAssertEqual(try parser.read(count: 3).string, "def")
+        XCTAssertEqual(try reader2.read(count: 3).string, "def")
     }
     
   /*  func testScan() throws {

@@ -16,17 +16,17 @@ class XMLParserTests: XCTestCase {
         let xml4 = "<?xml version='1.1' encoding='utf-8'?>"
         let xml5 = "<?xml version='1.1' encoding='UTF-8'?>"
         let parser = SwiftXMLParser()
-        XCTAssertNoThrow(try parser.parse(xmlData: xml1))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml2))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml3))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml4))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml5))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml1))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml2))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml3))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml4))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml5))
     }
 
     func testNoDeclaration() {
         let xml = "<element></element>"
         let parser = SwiftXMLParser()
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
     
     func testValidElements() {
@@ -36,11 +36,11 @@ class XMLParserTests: XCTestCase {
         let xml4 = "<?xml version='1.1' encoding='utf-8' ?><element><p></p></element>"
         let xml5 = "<?xml version='1.1' encoding='utf-8' ?><element><p/></element>"
         let parser = SwiftXMLParser()
-        XCTAssertNoThrow(try parser.parse(xmlData: xml1))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml2))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml3))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml4))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml5))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml1))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml2))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml3))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml4))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml5))
     }
     
     func testInvalidElements() {
@@ -49,10 +49,10 @@ class XMLParserTests: XCTestCase {
         let xml3 = "<a><b></a></b>"
         let xml4 = "<a><b></B></a>"
         let parser = SwiftXMLParser()
-        XCTAssertThrowsError(try parser.parse(xmlData: xml1))
-        XCTAssertThrowsError(try parser.parse(xmlData: xml2))
-        XCTAssertThrowsError(try parser.parse(xmlData: xml3))
-        XCTAssertThrowsError(try parser.parse(xmlData: xml4))
+        XCTAssertThrowsError(try parser.parse(xmlString: xml1))
+        XCTAssertThrowsError(try parser.parse(xmlString: xml2))
+        XCTAssertThrowsError(try parser.parse(xmlString: xml3))
+        XCTAssertThrowsError(try parser.parse(xmlString: xml4))
     }
     
     func testValidElementsWithAttributes() {
@@ -62,11 +62,11 @@ class XMLParserTests: XCTestCase {
         let xml4 = "<element><p test='hello'></p></element>"
         let xml5 = "<element><p test=\"hello\" /></element>"
         let parser = SwiftXMLParser()
-        XCTAssertNoThrow(try parser.parse(xmlData: xml1))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml2))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml3))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml4))
-        XCTAssertNoThrow(try parser.parse(xmlData: xml5))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml1))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml2))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml3))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml4))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml5))
     }
     
     func testElementStackDelegate() {
@@ -84,7 +84,7 @@ class XMLParserTests: XCTestCase {
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
         XCTAssertEqual(delegate.operations, "<a><b><c></c></b><d></d></a>")
     }
     
@@ -101,7 +101,7 @@ class XMLParserTests: XCTestCase {
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
     
     func testCharacterDataDelegate() {
@@ -115,7 +115,7 @@ class XMLParserTests: XCTestCase {
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
     
     func testCommentDelegate() {
@@ -129,7 +129,7 @@ class XMLParserTests: XCTestCase {
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
 
     func testEscapedCharacterDelegate() {
@@ -143,7 +143,7 @@ class XMLParserTests: XCTestCase {
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
     
     func testCharacterReferenceDelegate() {
@@ -157,7 +157,7 @@ class XMLParserTests: XCTestCase {
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
-        XCTAssertNoThrow(try parser.parse(xmlData: xml))
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
 
     func testSpeed() throws {
@@ -283,18 +283,28 @@ class XMLParserTests: XCTestCase {
                    </book>
                 </catalog>
                 """
-        let xmlData = Data(xml.utf8)
+        let xmlData = [UInt8](xml.utf8)
+        let xmlData2 = Data(xml.utf8)
         var startTime = Date()
-        
+        class Delegate: NSObject, SwiftXMLParserDelegate, XMLParserDelegate {
+            func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String]) {
+            }
+            
+            func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+            }
+        }
+        let delegate = Delegate()
         for _ in 0..<1000 {
             let parser = SwiftXMLParser()
+            parser.delegate = delegate
             try parser.parse(xmlData: xmlData)
         }
         print(-startTime.timeIntervalSinceNow)
         startTime = Date()
 
         for _ in 0..<1000 {
-            let parser2 = XMLParser(data: xmlData)
+            let parser2 = XMLParser(data: xmlData2)
+            parser2.delegate = delegate
             parser2.parse()
         }
         print(-startTime.timeIntervalSinceNow)

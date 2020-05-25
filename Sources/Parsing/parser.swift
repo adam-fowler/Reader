@@ -42,6 +42,7 @@ public struct Parser {
 
 //MARK: sub-parsers
 extension Parser {
+    /// initialise a parser that parses a section of the buffer attached to another parser
     init(_ parser: Parser, range: Range<Int>) {
         self.buffer = parser.buffer
         self.index = range.startIndex
@@ -51,6 +52,7 @@ extension Parser {
         precondition(buffer[range.startIndex] & 0xc0 != 0x80) // check we arent in the middle of a UTF8 character
     }
 
+    /// initialise a parser that parses a section of the buffer attached to this parser
     func subParser(_ range: Range<Int>) -> Parser {
         return Parser(self, range: range)
     }
@@ -96,7 +98,7 @@ public extension Parser {
         let initialIndex = index
         guard string.count > 0 else { throw Error.emptyString }
         let subString = try read(count: string.count)
-        guard subString == string else { self.index = initialIndex; return false }
+        guard subString.string == string else { self.index = initialIndex; return false }
         return true
     }
     
@@ -104,17 +106,17 @@ public extension Parser {
     /// - Parameter count: Number of characters to read
     /// - Throws: .overflow
     /// - Returns: The string read from the buffer
-    mutating func read(count: Int) throws -> String {
+    mutating func read(count: Int) throws -> Parser {
         var count = count
         var readEndIndex = index
         while count > 0 {
             guard readEndIndex != range.endIndex else { throw Error.overflow }
-            readEndIndex = skipUnicodeCharacter(at: readEndIndex)
+            readEndIndex = skipUTF8Character(at: readEndIndex)
             count -= 1
         }
-        let string = makeString(buffer[index..<readEndIndex])
+        let result = subParser(index..<readEndIndex)
         index = readEndIndex
-        return string
+        return result
     }
     
     /// Read from buffer until we hit a character. Position after this is of the character we were checking for
@@ -309,7 +311,7 @@ public extension Parser {
         var amount = amount
         while amount > 0 {
             guard !reachedEnd() else { throw Error.overflow }
-            index = skipUnicodeCharacter(at: index)
+            index = skipUTF8Character(at: index)
             amount -= 1
         }
     }
@@ -318,7 +320,7 @@ public extension Parser {
     /// - Throws: .overflow
     mutating func retreat() throws {
         guard index > range.startIndex else { throw Error.overflow }
-        index = backOneUnicodeCharacter(at: index)
+        index = backOneUTF8Character(at: index)
     }
     
     /// Move back so many characters
@@ -328,13 +330,13 @@ public extension Parser {
         var amount = amount
         while amount > 0 {
             guard index > range.startIndex else { throw Error.overflow }
-            index = backOneUnicodeCharacter(at: index)
+            index = backOneUTF8Character(at: index)
             amount -= 1
         }
     }
 
     mutating func unsafeAdvance() {
-        index = skipUnicodeCharacter(at: index)
+        index = skipUTF8Character(at: index)
     }
 }
 
@@ -342,11 +344,11 @@ public extension Parser {
 private extension Parser {
 
     func unsafeCurrent() -> Unicode.Scalar {
-        return decodeUnicodeCharacter(at: index).0
+        return decodeUTF8Character(at: index).0
     }
     
     mutating func unsafeCurrentAndAdvance() -> Unicode.Scalar {
-        let (unicodeScalar, index) = decodeUnicodeCharacter(at: self.index)
+        let (unicodeScalar, index) = decodeUTF8Character(at: self.index)
         self.index = index
         return unicodeScalar
     }
@@ -354,7 +356,7 @@ private extension Parser {
     mutating func unsafeAdvance(by amount: Int) {
         var amount = amount
         while amount > 0 {
-            index = skipUnicodeCharacter(at: index)
+            index = skipUTF8Character(at: index)
             amount -= 1
         }
     }
@@ -375,7 +377,7 @@ private extension Parser {
 
 extension Parser {
     
-    func decodeUnicodeCharacter(at index: Int) -> (Unicode.Scalar, Int) {
+    func decodeUTF8Character(at index: Int) -> (Unicode.Scalar, Int) {
         var index = index
         let byte1 = UInt32(buffer[index])
         var value: UInt32
@@ -402,14 +404,14 @@ extension Parser {
         return (unicodeScalar, index + 1)
     }
     
-    func skipUnicodeCharacter(at index: Int) -> Int {
+    func skipUTF8Character(at index: Int) -> Int {
         if buffer[index] & 0x80 != 0x80 { return index + 1 }
         if buffer[index+1] & 0xc0 == 0x80 { return index + 2 }
         if buffer[index+2] & 0xc0 == 0x80 { return index + 3 }
         return index + 4
     }
     
-    func backOneUnicodeCharacter(at index: Int) -> Int {
+    func backOneUTF8Character(at index: Int) -> Int {
         if buffer[index-1] & 0xc0 != 0x80 { return index - 1 }
         if buffer[index-2] & 0xc0 != 0x80 { return index - 2 }
         if buffer[index-3] & 0xc0 != 0x80 { return index - 3 }

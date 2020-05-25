@@ -3,11 +3,11 @@ import Parsing
 public protocol SwiftXMLParserDelegate {
     func didStartDocument(_ parser: SwiftXMLParser)
     func didEndDocument(_ parser: SwiftXMLParser)
-    func didStartElement<S: StringProtocol>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?, attributes attributeDict: [S : S])
-    func didEndElement<S: StringProtocol>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?)
-    func foundCharacters<S: StringProtocol>(_ parser: SwiftXMLParser, string: S)
-    func foundIgnorableWhitespace<S: StringProtocol>(_ parser: SwiftXMLParser, whiteSpace: S)
-    func foundComment<S: StringProtocol>(_ parser: SwiftXMLParser, comment: S)
+    func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String])
+    func didEndElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?)
+    func foundCharacters(_ parser: SwiftXMLParser, string: String)
+    func foundIgnorableWhitespace(_ parser: SwiftXMLParser, whiteSpace: String)
+    func foundComment(_ parser: SwiftXMLParser, comment: String)
     func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: [UInt8])
     func errorOccurred(_ parser: SwiftXMLParser, error: Error) -> Error?
 }
@@ -15,15 +15,16 @@ public protocol SwiftXMLParserDelegate {
 extension SwiftXMLParserDelegate {
     public func didStartDocument(_ parser: SwiftXMLParser) {}
     public func didEndDocument(_ parser: SwiftXMLParser) {}
-    public func didStartElement<S: StringProtocol>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?, attributes attributeDict: [S : S]) {}
-    public func didEndElement<S: StringProtocol>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?) {}
-    public func foundCharacters<S: StringProtocol>(_ parser: SwiftXMLParser, string: S) {}
-    public func foundIgnorableWhitespace<S: StringProtocol>(_ parser: SwiftXMLParser, whiteSpace: S) {}
-    public func foundComment<S: StringProtocol>(_ parser: SwiftXMLParser, comment: S) {}
+    public func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String]) {}
+    public func didEndElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?) {}
+    public func foundCharacters(_ parser: SwiftXMLParser, string: String) {}
+    public func foundIgnorableWhitespace(_ parser: SwiftXMLParser, whiteSpace: String) {}
+    public func foundComment(_ parser: SwiftXMLParser, comment: String) {}
     public func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: [UInt8]) {}
     public func errorOccurred(_ parser: SwiftXMLParser, error: Error) -> Error? { return error }
 }
 
+/// XML parser. See https://www.w3.org/TR/xml11/ for details of XML language
 public class SwiftXMLParser {
     public struct Error: Swift.Error {
         private enum InternalError {
@@ -54,8 +55,8 @@ public class SwiftXMLParser {
         self.delegate = NullDelegate()
     }
 
-    public func parse(xmlData: String) throws {
-        try parse(with: Parser(xmlData))
+    public func parse(xmlString: String) throws {
+        try parse(with: Parser(xmlString))
     }
     
     public func parse<Buffer: Collection>(xmlData: Buffer) throws where Buffer.Element == UInt8, Buffer.Index == Int {
@@ -269,7 +270,6 @@ public class SwiftXMLParser {
 }
 
 extension Unicode.Scalar {
-    var isWhitespaceOrNewline: Bool { return isWhitespace || isNewline }
     var isNameStartChar: Bool { return isLetter }
     var isNameChar: Bool { return isLetter || isNumber || self == ":" }
     var isQuotes: Bool { return self == "\"" || self == "'"}
