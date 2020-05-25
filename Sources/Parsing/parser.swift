@@ -6,12 +6,12 @@ public struct Parser {
         case overflow
         case unexpected
         case emptyString
-        case invalidCharacter
+        case invalidUTF8
     }
     
     /// Create a Parser object
     /// - Parameter string: UTF8 data to parse
-    public init<Bytes: Collection>(_ utf8Data: Bytes) where Bytes.Element == UInt8 {
+    public init?<Bytes: Collection>(_ utf8Data: Bytes, validateUTF8: Bool = true) where Bytes.Element == UInt8 {
         if let buffer = utf8Data as? [UInt8] {
             self.buffer = buffer
         } else {
@@ -19,10 +19,17 @@ public struct Parser {
         }
         self.index = 0
         self.range = 0..<buffer.endIndex
+        
+        // should check that the data is valid utf8
+        if validateUTF8 == true && self.validateUTF8() == false {
+            return nil
+        }
     }
 
     public init(_ string: String) {
-        self.init(Array(string.utf8))
+        self.buffer = Array(string.utf8)
+        self.index = 0
+        self.range = 0..<buffer.endIndex
     }
     
     /// Return contents of parser as a string
@@ -400,7 +407,7 @@ extension Parser {
         } else {
             value = byte1 & 0x7f
         }
-        /*guard*/ let unicodeScalar = Unicode.Scalar(value)! /*else { throw Error.invalidCharacter }*/
+        let unicodeScalar = Unicode.Scalar(value)!
         return (unicodeScalar, index + 1)
     }
     
@@ -416,6 +423,50 @@ extension Parser {
         if buffer[index-2] & 0xc0 != 0x80 { return index - 2 }
         if buffer[index-3] & 0xc0 != 0x80 { return index - 3 }
         return index - 4
+    }
+    
+    // same as `decodeUTF8Character` but adds extra validation, so we can make assumptions later on
+    func validateUTF8Character(at index: Int) -> (Unicode.Scalar?, Int) {
+        var index = index
+        let byte1 = UInt32(buffer[index])
+        var value: UInt32
+        if byte1 & 0xc0 == 0xc0 {
+            index += 1
+            let byte = UInt32(buffer[index])
+            guard byte & 0xc0 == 0x80 else { return (nil, index) }
+            let byte2 = UInt32(byte & 0x3f)
+            if byte1 & 0xe0 == 0xe0 {
+                index += 1
+                let byte = UInt32(buffer[index])
+                guard byte & 0xc0 == 0x80 else { return (nil, index) }
+                let byte3 = UInt32(byte & 0x3f)
+                if byte1 & 0xf0 == 0xf0 {
+                    index += 1
+                    let byte = UInt32(buffer[index])
+                    guard byte & 0xc0 == 0x80 else { return (nil, index) }
+                    let byte4 = UInt32(byte & 0x3f)
+                    value = (byte1 & 0x7) << 18 + byte2 << 12 + byte3 << 6 + byte4
+                } else {
+                    value = (byte1 & 0xf) << 12 + byte2 << 6 + byte3
+                }
+            } else {
+                value = (byte1 & 0x1f) << 6 + byte2
+            }
+        } else {
+            value = byte1 & 0x7f
+        }
+        let unicodeScalar = Unicode.Scalar(value)
+        return (unicodeScalar, index + 1)
+    }
+    
+    func validateUTF8() -> Bool {
+        var index = range.startIndex
+        while index < range.endIndex {
+            let (scalar, newIndex) = validateUTF8Character(at: index)
+            guard scalar != nil else { return false }
+            index = newIndex
+        }
+        return true
     }
 }
 

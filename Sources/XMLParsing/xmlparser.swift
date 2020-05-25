@@ -36,6 +36,7 @@ public class SwiftXMLParser {
             case unmatchingEndTag
             case missingEndTag
             case unrecognisedEscapedCharacter
+            case invalidUTF8
         }
         private let internalError: InternalError
         
@@ -47,6 +48,7 @@ public class SwiftXMLParser {
         static var unmatchingEndTag: Error { return Error(internalError: .unmatchingEndTag)}
         static var missingEndTag: Error { return Error(internalError: .missingEndTag)}
         static var unrecognisedEscapedCharacter: Error { return Error(internalError: .unrecognisedEscapedCharacter)}
+        static var invalidUTF8: Error { return Error(internalError: .invalidUTF8)}
     }
     
     class NullDelegate: SwiftXMLParserDelegate {}
@@ -60,7 +62,8 @@ public class SwiftXMLParser {
     }
     
     public func parse<Buffer: Collection>(xmlData: Buffer) throws where Buffer.Element == UInt8, Buffer.Index == Int {
-        try parse(with: Parser(xmlData))
+        guard let parser = Parser(xmlData) else { throw Error.invalidUTF8 }
+        try parse(with: parser)
     }
     
     public func parse(with parser: Parser) throws {
