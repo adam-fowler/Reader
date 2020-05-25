@@ -183,11 +183,13 @@ public extension Parser {
         return subParser(startIndex..<index)
     }
     
-    /// Read from buffer until we hit a string. Position after this is of the beginning of the string we were checking for
-    /// - Parameter until: String to check for
+    /// Read from buffer until we hit a string. By default the position after this is of the beginning of the string we were checking for
+    /// - Parameter untilString: String to check for
+    /// - Parameter throwOnOverflow: Throw errors if we hit the end of the buffer
+    /// - Parameter skipToEnd: Should we set the position to after the found string
     /// - Throws: .overflow, .emptyString
     /// - Returns: String read from buffer
-    @discardableResult mutating func read(untilString: String, throwOnOverflow: Bool = true) throws -> Parser {
+    @discardableResult mutating func read(untilString: String, throwOnOverflow: Bool = true, skipToEnd: Bool = false) throws -> Parser {
         var untilString = untilString
         return try untilString.withUTF8 { utf8 in
             guard utf8.count > 0 else { throw Error.emptyString }
@@ -201,8 +203,10 @@ public extension Parser {
                     }
                     untilIndex += 1
                     if untilIndex == utf8.endIndex {
-                        index = foundIndex
-                        let result = subParser(startIndex..<index)
+                        if skipToEnd == false {
+                            index = foundIndex
+                        }
+                        let result = subParser(startIndex..<foundIndex)
                         return result
                     }
                 } else {
@@ -345,6 +349,14 @@ public extension Parser {
     mutating func unsafeAdvance() {
         index = skipUTF8Character(at: index)
     }
+
+    mutating func unsafeAdvance(by amount: Int) {
+        var amount = amount
+        while amount > 0 {
+            index = skipUTF8Character(at: index)
+            amount -= 1
+        }
+    }
 }
 
 // internal versions without checks
@@ -358,14 +370,6 @@ private extension Parser {
         let (unicodeScalar, index) = decodeUTF8Character(at: self.index)
         self.index = index
         return unicodeScalar
-    }
-    
-    mutating func unsafeAdvance(by amount: Int) {
-        var amount = amount
-        while amount > 0 {
-            index = skipUTF8Character(at: index)
-            amount -= 1
-        }
     }
     
     mutating func _setPosition(_ index: Int) {
@@ -425,7 +429,7 @@ extension Parser {
         return index - 4
     }
     
-    // same as `decodeUTF8Character` but adds extra validation, so we can make assumptions later on
+    /// same as `decodeUTF8Character` but adds extra validation, so we can make assumptions later on in decode and skip
     func validateUTF8Character(at index: Int) -> (Unicode.Scalar?, Int) {
         var index = index
         let byte1 = UInt32(buffer[index])
@@ -459,6 +463,7 @@ extension Parser {
         return (unicodeScalar, index + 1)
     }
     
+    /// return if the buffer is valid UTF8
     func validateUTF8() -> Bool {
         var index = range.startIndex
         while index < range.endIndex {

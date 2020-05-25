@@ -9,6 +9,22 @@ import FoundationXML
 
 class XMLParserTests: XCTestCase {
 
+    class ElementParserDelegate: SwiftXMLParserDelegate {
+        init() {}
+        
+        func reset() {
+            operations = ""
+        }
+        func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String]) {
+            operations += "<\(elementName)>"
+        }
+        func didEndElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?) {
+            operations += "</\(elementName)>"
+        }
+
+        var operations: String = ""
+    }
+
     func testValidDeclaration() {
         let xml1 = "<?xml version='1.1' encoding='utf-8' ?>"
         let xml2 = "<?XML version='1.1' encoding='utf-8' ?>"
@@ -70,19 +86,9 @@ class XMLParserTests: XCTestCase {
     }
     
     func testElementStackDelegate() {
-        class Delegate: SwiftXMLParserDelegate {
-            init() {}
-            var operations: String = ""
-            func didStartElement<S>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?, attributes attributeDict: [S : S]) where S : StringProtocol {
-                operations += "<\(elementName)>"
-            }
-            func didEndElement<S>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?) where S : StringProtocol {
-                operations += "</\(elementName)>"
-            }
-        }
         let xml = "<a><b><c/></b><d></d></a>"
         let parser = SwiftXMLParser()
-        let delegate = Delegate()
+        let delegate = ElementParserDelegate()
         parser.delegate = delegate
         XCTAssertNoThrow(try parser.parse(xmlString: xml))
         XCTAssertEqual(delegate.operations, "<a><b><c></c></b><d></d></a>")
@@ -91,7 +97,7 @@ class XMLParserTests: XCTestCase {
     func testAttributesDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
-            func didStartElement<S>(_ parser: SwiftXMLParser, elementName: S, namespaceURI: S?, attributes attributeDict: [S : S]) where S : StringProtocol {
+            func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String]) {
                 XCTAssertEqual(elementName, "a")
                 XCTAssertEqual(attributeDict["b"], "test")
                 XCTAssertEqual(attributeDict["c"], "test2")
@@ -107,7 +113,7 @@ class XMLParserTests: XCTestCase {
     func testCharacterDataDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
-            func foundCharacters<S>(_ parser: SwiftXMLParser, string: S) where S : StringProtocol {
+            func foundCharacters(_ parser: SwiftXMLParser, string: String) {
                 XCTAssertEqual(string, "testing testing 1,2,1,2")
             }
         }
@@ -121,7 +127,7 @@ class XMLParserTests: XCTestCase {
     func testCommentDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
-            func foundComment<S>(_ parser: SwiftXMLParser, comment: S) where S : StringProtocol {
+            func foundComment(_ parser: SwiftXMLParser, comment: String) {
                 XCTAssertEqual(comment, "This is a comment")
             }
         }
@@ -135,7 +141,7 @@ class XMLParserTests: XCTestCase {
     func testEscapedCharacterDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
-            func foundCharacters<S>(_ parser: SwiftXMLParser, string: S) where S : StringProtocol {
+            func foundCharacters(_ parser: SwiftXMLParser, string: String) {
                 XCTAssertEqual(string, "testing <> testing &1,2,1,2")
             }
         }
@@ -149,7 +155,7 @@ class XMLParserTests: XCTestCase {
     func testCharacterReferenceDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
-            func foundCharacters<S>(_ parser: SwiftXMLParser, string: S) where S : StringProtocol {
+            func foundCharacters(_ parser: SwiftXMLParser, string: String) {
                 XCTAssertEqual(string, "testing A a é 😀")
             }
         }
@@ -160,6 +166,43 @@ class XMLParserTests: XCTestCase {
         XCTAssertNoThrow(try parser.parse(xmlString: xml))
     }
 
+    // test we skip past DTD ok
+    func testDTDParsing() {
+        let xml = """
+                <?xml version="1.0"?>
+                <!DOCTYPE catalog [
+                <!ELEMENT catalog (book)>
+                <!ELEMENT book (author, title, genre, price, publish_date, description)>
+                <!ELEMENT author (#PCDATA)>
+                <!ELEMENT title (#PCDATA)>
+                ]>
+                <catalog>
+                   <book id="bk101">
+                      <author>Gambardella, Matthew adam;</author>
+                      <title>XML Developer's Guide</title>
+                   </book>
+                </catalog>
+                """
+        let xml2 = """
+                <?xml version="1.0"?>
+                <!DOCTYPE catalog SYSTEM "catalog.dtd">
+                <catalog>
+                <book id="bk101">
+                    <author>Gambardella, Matthew adam;</author>
+                    <title>XML Developer's Guide</title>
+                </book>
+                </catalog>
+                """
+        let parser = SwiftXMLParser()
+        let delegate = ElementParserDelegate()
+        parser.delegate = delegate
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.operations, "<catalog><book><author></author><title></title></book></catalog>")
+        delegate.reset()
+        XCTAssertNoThrow(try parser.parse(xmlString: xml2))
+        XCTAssertEqual(delegate.operations, "<catalog><book><author></author><title></title></book></catalog>")
+    }
+    
     func testSpeed() throws {
         let xml = """
                 <?xml version="1.0"?>
@@ -294,7 +337,7 @@ class XMLParserTests: XCTestCase {
             }
         }
         let delegate = Delegate()
-        for _ in 0..<1000 {
+        for _ in 0..<100 {
             let parser = SwiftXMLParser()
             parser.delegate = delegate
             try parser.parse(xmlData: xmlData)
@@ -302,11 +345,63 @@ class XMLParserTests: XCTestCase {
         print(-startTime.timeIntervalSinceNow)
         startTime = Date()
 
-        for _ in 0..<1000 {
+        for _ in 0..<100 {
             let parser2 = XMLParser(data: xmlData2)
             parser2.delegate = delegate
             parser2.parse()
         }
         print(-startTime.timeIntervalSinceNow)
     }
+
+    func testAgainstFoundation() throws {
+        let xml = """
+                <?xml version="1.0"?>
+                <!DOCTYPE catalog [
+                <!ELEMENT catalog (book)>
+                <!ELEMENT book (author, title, genre, price, publish_date, description)>
+                <!ELEMENT author (#PCDATA)>
+                <!ELEMENT title (#PCDATA)>
+                <!ELEMENT genre (#PCDATA)>
+                <!ELEMENT price (#PCDATA)>
+                <!ELEMENT publish_date (#PCDATA)>
+                <!ELEMENT description (#PCDATA)>
+                ]>
+                <catalog xmlns:edi="https://opticalaberration.com">
+                   <book xmlns:id="bk101">
+                      <author>Gambardella, Matthew adam;</author>
+                      <title>XML Developer's Guide</title>
+                      <genre>Computer</genre>
+                      <price>44.95</price>
+                      <publish_date>2000-10-01</publish_date>
+                      <description>An in-depth look at creating applications
+                      with XML.</description>
+                   </book>
+                </catalog>
+                """
+
+        class Delegate: NSObject, SwiftXMLParserDelegate, XMLParserDelegate {
+            func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String]) {
+                print("Swift: \(elementName), \(namespaceURI ?? "none"), \(attributeDict)")
+            }
+            
+            func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+                print("Foundation: \(elementName), \(namespaceURI ?? "none"), \(qName ?? "none"), \(attributeDict)")
+            }
+        }
+        let delegate = Delegate()
+        let xmlData = Data(xml.utf8)
+
+        let parser2 = XMLParser(data: xmlData)
+        parser2.delegate = delegate
+        let rt = parser2.parse()
+        if rt == false {
+            print("Invalid XML")
+        }
+
+        let parser = SwiftXMLParser()
+        parser.delegate = delegate
+        try parser.parse(xmlData: xmlData)
+
+    }
 }
+

@@ -1,29 +1,5 @@
 import Parsing
 
-public protocol SwiftXMLParserDelegate {
-    func didStartDocument(_ parser: SwiftXMLParser)
-    func didEndDocument(_ parser: SwiftXMLParser)
-    func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String])
-    func didEndElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?)
-    func foundCharacters(_ parser: SwiftXMLParser, string: String)
-    func foundIgnorableWhitespace(_ parser: SwiftXMLParser, whiteSpace: String)
-    func foundComment(_ parser: SwiftXMLParser, comment: String)
-    func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: [UInt8])
-    func errorOccurred(_ parser: SwiftXMLParser, error: Error) -> Error?
-}
-
-extension SwiftXMLParserDelegate {
-    public func didStartDocument(_ parser: SwiftXMLParser) {}
-    public func didEndDocument(_ parser: SwiftXMLParser) {}
-    public func didStartElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?, attributes attributeDict: [String : String]) {}
-    public func didEndElement(_ parser: SwiftXMLParser, elementName: String, namespaceURI: String?) {}
-    public func foundCharacters(_ parser: SwiftXMLParser, string: String) {}
-    public func foundIgnorableWhitespace(_ parser: SwiftXMLParser, whiteSpace: String) {}
-    public func foundComment(_ parser: SwiftXMLParser, comment: String) {}
-    public func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: [UInt8]) {}
-    public func errorOccurred(_ parser: SwiftXMLParser, error: Error) -> Error? { return error }
-}
-
 /// XML parser. See https://www.w3.org/TR/xml11/ for details of XML language
 public class SwiftXMLParser {
     public struct Error: Swift.Error {
@@ -51,22 +27,25 @@ public class SwiftXMLParser {
         static var invalidUTF8: Error { return Error(internalError: .invalidUTF8)}
     }
     
-    class NullDelegate: SwiftXMLParserDelegate {}
-    
+    /// Initialise XML parser
     public init() {
         self.delegate = NullDelegate()
     }
-
+    
+    /// Parse XML string
+    /// - Parameter xmlString: string containing XML
     public func parse(xmlString: String) throws {
         try parse(with: Parser(xmlString))
     }
     
+    /// Parse XML data
+    /// - Parameter xmlData: Collection holding xml data
     public func parse<Buffer: Collection>(xmlData: Buffer) throws where Buffer.Element == UInt8, Buffer.Index == Int {
         guard let parser = Parser(xmlData) else { throw Error.invalidUTF8 }
         try parse(with: parser)
     }
     
-    public func parse(with parser: Parser) throws {
+    func parse(with parser: Parser) throws {
         delegate.didStartDocument(self)
         
         var parser = parser
@@ -90,24 +69,32 @@ public class SwiftXMLParser {
             do {
                 if try parser.read("<") {
                     let c = parser.current()
-                    let contents = try parser.read(until: ">")
                     if c == "?" {
+                        let contents = try parser.read(untilString: "?>", skipToEnd: true)
                         try parseProcessingInstructions(contents)
                     } else if c == "!" {
-                        // assume comment now need to fix to parse DTD elements etc
-                        try parseComment(contents)
-                        // ignore DTD elements, comments,
+                        if try parser.read("!--") {
+                            let contents = try parser.read(untilString: "-->", skipToEnd: true)
+                            try parseComment(contents)
+                        } else if try parser.read("!DOCTYPE") {
+                            try parseDocType(&parser)
+                        } else {
+                            try parser.read(until: ">")
+                            parser.unsafeAdvance()
+                        }
                     } else if c == "/" {
+                        let contents = try parser.read(until: ">")
+                        parser.unsafeAdvance()
                         let elementName = try parseEndTag(contents)
                         let poppedElementName = elementStack.popLast()
                         guard elementName == poppedElementName else { throw Error.unmatchingEndTag }
                     } else {
+                        let contents = try parser.read(until: ">")
+                        parser.unsafeAdvance()
                         if let elementName = try parseElement(contents) {
                             elementStack.append(elementName)
                         }
                     }
-                    // advance past ">"
-                    parser.unsafeAdvance()
                 } else if elementStack.count > 0 {
                     let contents = try parser.read(until: "<")
                     try parseCharacters(contents)
@@ -149,6 +136,16 @@ public class SwiftXMLParser {
     }
     
     func parseProcessingInstructions(_ parser: Parser) throws {
+    }
+    
+    func parseDocType(_ parser: inout Parser) throws {
+        // basically skip the DOCTYPE. Read until we either find a [ or a >
+        try parser.read(until: Set("[>"))
+        if parser.current() == "[" {
+            try parser.read(until: "]")
+            try parser.read(until: ">")
+        }
+        parser.unsafeAdvance()
     }
     
     func parseElement(_ elementParser: Parser) throws -> String? {
@@ -262,11 +259,7 @@ public class SwiftXMLParser {
     }
     
     func parseComment(_ commentParser: Parser) throws {
-        var parser = commentParser
-        // skip "!--"
-        try parser.advance(by: 3)
-        let text = try parser.read(untilString: "--")
-        delegate.foundComment(self, comment: text.string)
+        delegate.foundComment(self, comment: commentParser.string)
     }
     
     public var delegate: SwiftXMLParserDelegate
