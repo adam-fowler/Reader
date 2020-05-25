@@ -1,7 +1,7 @@
 import XCTest
 @testable import Parsing
 
-final class parserTests: XCTestCase {
+final class ParserTests: XCTestCase {
     func testCharacter() {
         var parser = Parser("TestString")
         XCTAssertEqual(try parser.character(), "T")
@@ -26,20 +26,20 @@ final class parserTests: XCTestCase {
 
     func testReadUntilCharacter() throws {
         var parser = Parser("TestString")
-        XCTAssertEqual(try parser.read(until:"S"), "Test")
-        XCTAssertEqual(try parser.read(until:"n"), "Stri")
+        XCTAssertEqual(try parser.read(until:"S").string, "Test")
+        XCTAssertEqual(try parser.read(until:"n").string, "Stri")
         XCTAssertThrowsError(try parser.read(until:"!"))
     }
 
     func testReadUntilCharacterSet() throws {
         var parser = Parser("TestString")
-        XCTAssertEqual(try parser.read(until:Set("Sr")), "Test")
-        XCTAssertEqual(try parser.read(until:Set("abcdefg")), "Strin")
+        XCTAssertEqual(try parser.read(until:Set("Sr")).string, "Test")
+        XCTAssertEqual(try parser.read(until:Set("abcdefg")).string, "Strin")
     }
 
     func testReadUntilString() throws {
         var parser = Parser("<!-- check for -comment end -->")
-        XCTAssertEqual(try parser.read(untilString:"-->"), "<!-- check for -comment end ")
+        XCTAssertEqual(try parser.read(untilString:"-->").string, "<!-- check for -comment end ")
         XCTAssertTrue(try parser.read("-->"))
     }
 
@@ -52,9 +52,9 @@ final class parserTests: XCTestCase {
 
     func testReadWhileCharacterSet() throws {
         var parser = Parser("aabbcdd836de")
-        XCTAssertEqual(parser.read(while:Set("abcdef")), "aabbcdd")
-        XCTAssertEqual(parser.read(while:Set("123456789")), "836")
-        XCTAssertEqual(parser.read(while:Set("abcdef")), "de")
+        XCTAssertEqual(parser.read(while:Set("abcdef")).string, "aabbcdd")
+        XCTAssertEqual(parser.read(while:Set("123456789")).string, "836")
+        XCTAssertEqual(parser.read(while:Set("abcdef")).string, "de")
     }
 
     func testRetreat() throws {
@@ -73,7 +73,7 @@ final class parserTests: XCTestCase {
         XCTAssertEqual(try reader2.read(count: 3), "def")
     }
     
-    func testScan() throws {
+  /*  func testScan() throws {
         var parser = Parser("\"this\" = \"that\"")
         let result = try parser.scan(format: "\"%%\" = \"%%\"")
         XCTAssertEqual(result[0], "this")
@@ -88,23 +88,21 @@ final class parserTests: XCTestCase {
     func testScanError() throws {
         var reader2 = Parser("this == that")
         XCTAssertThrowsError(try reader2.scan(format: "%% = %%"))
-    }
+    }*/
     
     
     static var allTests = [
         ("testCharacter", testCharacter),
         ("testSubstring", testSubstring),
         ("testReadCharacter", testReadCharacter),
-/*        ("testReadUntilCharacter", testReadUntilCharacter),
-        ("testReadUntilKeyPath", testReadUntilKeyPath),
+        ("testReadUntilCharacter", testReadUntilCharacter),
         ("testReadUntilCharacterSet", testReadUntilCharacterSet),
         ("testReadUntilString", testReadUntilString),
         ("testReadWhileCharacter", testReadWhileCharacter),
-        ("testReadWhileKeyPath", testReadWhileKeyPath),
         ("testReadWhileCharacterSet", testReadWhileCharacterSet),
         ("testRetreat", testRetreat),
         ("testCopy", testCopy),
-        ("testScan", testScan),
+ /*       ("testScan", testScan),
         ("testScanError", testScanError),*/
     ]
 }
