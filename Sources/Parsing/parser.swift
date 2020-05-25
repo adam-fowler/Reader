@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reader object for parsing String buffers
-public struct Parser {
+public struct Parser<Bytes: Collection> where Bytes.Element == UInt8, Bytes.Index == Int {
     public enum Error : Swift.Error {
         case overflow
         case unexpected
@@ -11,23 +11,20 @@ public struct Parser {
     
     /// Create a Parser object
     /// - Parameter string: UTF8 data to parse
-    public init<Bytes: Collection>(_ utf8Data: Bytes)  where Bytes.Element == UInt8 {
-        if let buffer = utf8Data as? [UInt8] {
-            self.buffer = buffer
-        } else {
-            self.buffer = Array(utf8Data)
-        }
+    public init(_ utf8Data: Bytes)  {
+        self.buffer = utf8Data
         self.index = 0
     }
 
-    public init(_ string: String) {
-        self.init(Array(string.utf8))
-    }
-
-    private var buffer: [UInt8]
+    private var buffer: Bytes
     private var index: Int
 }
 
+public extension Parser where Bytes == [UInt8] {
+    init(_ string: String) {
+        self.init(Array(string.utf8))
+    }
+}
 
 public extension Parser {
     
@@ -229,7 +226,7 @@ public extension Parser {
     
     mutating func scan(format: String) throws -> [String] {
         var result: [String] = []
-        var formatReader = Parser(format)
+        var formatReader = Parser<[UInt8]>(format)
         let text = try formatReader.read(untilString: "%%", throwOnOverflow: false)
         if text.count > 0 {
             guard try read(String(text)) else { throw Error.unexpected }
@@ -387,6 +384,30 @@ extension Parser {
         if buffer[index-2] & 0xc0 != 0x80 { return index - 2 }
         if buffer[index-3] & 0xc0 != 0x80 { return index - 3 }
         return index - 4
+    }
+}
+
+extension Unicode.Scalar {
+    public var isWhitespace: Bool {
+        return properties.isWhitespace
+    }
+    
+    public var isNewline: Bool {
+        switch self.value {
+          case 0x000A...0x000D /* LF ... CR */: return true
+          case 0x0085 /* NEXT LINE (NEL) */: return true
+          case 0x2028 /* LINE SEPARATOR */: return true
+          case 0x2029 /* PARAGRAPH SEPARATOR */: return true
+          default: return false
+        }
+    }
+    
+    public var isNumber: Bool {
+        return properties.numericType != nil
+    }
+    
+    public var isLetter: Bool {
+        return properties.isAlphabetic
     }
 }
 
