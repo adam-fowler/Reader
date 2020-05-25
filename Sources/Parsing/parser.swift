@@ -1,3 +1,11 @@
+// Parser.swift
+//
+// Half inspired by Reader class from John Sundell's Ink project
+// https://github.com/JohnSundell/Ink/blob/master/Sources/Ink/Internal/Reader.swift
+// with optimisation working ie removing String and doing my own UTF8 processing inspired by Fabian Fett's work in
+// https://github.com/fabianfett/pure-swift-json/blob/master/Sources/PureSwiftJSONParsing/DocumentReader.swift
+//
+
 import Foundation
 
 /// Reader object for parsing String buffers
