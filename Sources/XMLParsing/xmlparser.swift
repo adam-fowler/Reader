@@ -54,8 +54,7 @@ public class SwiftXMLParser {
         // read declaration
         var prologReader = parser
         if try prologReader.read("<"), prologReader.current() == "?" {
-            try parseDeclaration(try prologReader.read(until: ">"))
-            try prologReader.advance()
+            try parseDeclaration(try prologReader.read(untilString: "?>", skipToEnd: true))
             parser = prologReader
         }
         
@@ -70,14 +69,15 @@ public class SwiftXMLParser {
                 if try parser.read("<") {
                     let c = parser.current()
                     if c == "?" {
-                        let contents = try parser.read(untilString: "?>", skipToEnd: true)
-                        try parseProcessingInstructions(contents)
+                        try parseProcessingInstructions(&parser)
                     } else if c == "!" {
                         if try parser.read("!--") {
                             let contents = try parser.read(untilString: "-->", skipToEnd: true)
                             try parseComment(contents)
                         } else if try parser.read("!DOCTYPE") {
                             try parseDocType(&parser)
+                        } else if try parser.read("![CDATA[") {
+                            try parseCDATA(&parser)
                         } else {
                             try parser.read(until: ">")
                             parser.unsafeAdvance()
@@ -131,11 +131,10 @@ public class SwiftXMLParser {
         if let encoding = tag.attributes["encoding"] {
             guard encoding.caseInsensitiveCompare("utf-8") == .orderedSame else { throw Error.unsupportedEncoding }
         }
-        parser.read(while: \.isWhitespace)
-        guard parser.current() == "?" else { throw Error.unexpectedCharacter }
     }
     
-    func parseProcessingInstructions(_ parser: Parser) throws {
+    func parseProcessingInstructions(_ parser: inout Parser) throws {
+        try parser.read(untilString: "?>", skipToEnd: true)
     }
     
     func parseDocType(_ parser: inout Parser) throws {
@@ -256,6 +255,11 @@ public class SwiftXMLParser {
             }
             throw Error.unrecognisedEscapedCharacter
         }
+    }
+    
+    func parseCDATA(_ parser: inout Parser) throws {
+        let cdata = try parser.read(untilString: "]]>", skipToEnd: true)
+        delegate.foundCDATA(self, CDATABlock: cdata.string)
     }
     
     func parseComment(_ commentParser: Parser) throws {

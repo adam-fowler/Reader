@@ -7,7 +7,7 @@ public protocol SwiftXMLParserDelegate {
     func foundCharacters(_ parser: SwiftXMLParser, string: String)
     func foundIgnorableWhitespace(_ parser: SwiftXMLParser, whiteSpace: String)
     func foundComment(_ parser: SwiftXMLParser, comment: String)
-    func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: [UInt8])
+    func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: String)
     func errorOccurred(_ parser: SwiftXMLParser, error: Error) -> Error?
 }
 
@@ -19,7 +19,7 @@ extension SwiftXMLParserDelegate {
     public func foundCharacters(_ parser: SwiftXMLParser, string: String) {}
     public func foundIgnorableWhitespace(_ parser: SwiftXMLParser, whiteSpace: String) {}
     public func foundComment(_ parser: SwiftXMLParser, comment: String) {}
-    public func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: [UInt8]) {}
+    public func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: String) {}
     public func errorOccurred(_ parser: SwiftXMLParser, error: Error) -> Error? { return error }
 }
 

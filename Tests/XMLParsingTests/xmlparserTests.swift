@@ -114,60 +114,68 @@ class XMLParserTests: XCTestCase {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
             func foundCharacters(_ parser: SwiftXMLParser, string: String) {
-                XCTAssertEqual(string, "testing testing 1,2,1,2")
+                text = string
             }
+            var text: String = ""
         }
         let xml = "<a>testing testing 1,2,1,2</a>"
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
         XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.text, "testing testing 1,2,1,2")
     }
     
     func testCommentDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
             func foundComment(_ parser: SwiftXMLParser, comment: String) {
-                XCTAssertEqual(comment, "This is a comment")
+                text = comment
             }
+            var text: String = ""
         }
         let xml = "<a><!--This is a comment--></a>"
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
         XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.text, "This is a comment")
     }
 
     func testEscapedCharacterDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
             func foundCharacters(_ parser: SwiftXMLParser, string: String) {
-                XCTAssertEqual(string, "testing <> testing &1,2,1,2")
+                text = string
             }
+            var text: String = ""
         }
         let xml = "<a>testing &lt;&gt; testing &amp;1,2,1,2</a>"
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
         XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.text, "testing <> testing &1,2,1,2")
     }
     
     func testCharacterReferenceDelegate() {
         class Delegate: SwiftXMLParserDelegate {
             init() {}
             func foundCharacters(_ parser: SwiftXMLParser, string: String) {
-                XCTAssertEqual(string, "testing A a é 😀")
+                text = string
             }
-        }
+            var text: String = ""
+}
         let xml = "<a>testing &#65; &#x61; &#233; &#x1f600;</a>"
         let parser = SwiftXMLParser()
         let delegate = Delegate()
         parser.delegate = delegate
         XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.text, "testing A a é 😀")
     }
 
     // test we skip past DTD ok
-    func testDTDParsing() {
+    func testSkipDTD() {
         let xml = """
                 <?xml version="1.0"?>
                 <!DOCTYPE catalog [
@@ -201,6 +209,35 @@ class XMLParserTests: XCTestCase {
         delegate.reset()
         XCTAssertNoThrow(try parser.parse(xmlString: xml2))
         XCTAssertEqual(delegate.operations, "<catalog><book><author></author><title></title></book></catalog>")
+    }
+    
+    func testSkipProcessingInstructions() {
+        let xml = """
+                <?xml version="1.1" encoding="UTF-8" ?>
+                <?xml-stylesheet href = "tutorialspointstyle.css" type = "text/css"?>
+                <a></a>
+                """
+        let parser = SwiftXMLParser()
+        let delegate = ElementParserDelegate()
+        parser.delegate = delegate
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.operations, "<a></a>")
+    }
+    
+    func testCDATA() {
+        class Delegate: SwiftXMLParserDelegate {
+            init() {}
+            func foundCDATA(_ parser: SwiftXMLParser, CDATABlock: String) {
+                text = CDATABlock
+            }
+            var text: String = ""
+        }
+        let xml = "<a><![CDATA[<Testing&amp;>]]></a>"
+        let parser = SwiftXMLParser()
+        let delegate = Delegate()
+        parser.delegate = delegate
+        XCTAssertNoThrow(try parser.parse(xmlString: xml))
+        XCTAssertEqual(delegate.text, "<Testing&amp;>")
     }
     
     func testSpeed() throws {

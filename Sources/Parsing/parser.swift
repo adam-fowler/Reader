@@ -203,6 +203,7 @@ public extension Parser {
                     }
                     untilIndex += 1
                     if untilIndex == utf8.endIndex {
+                        unsafeAdvance()
                         if skipToEnd == false {
                             index = foundIndex
                         }
