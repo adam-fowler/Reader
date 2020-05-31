@@ -190,7 +190,7 @@ public class SwiftXMLParser {
     }
 
     func parseAttribute(_ parser: inout Parser) throws -> (name: String, value: String) {
-        let name = parser.read(while: \.isNameChar)
+        let name = parser.read(while: { $0.isNameChar })
         guard try parser.read("=") else { throw Error.unexpectedCharacter }
         let quotes = parser.current()
         guard quotes.isQuotes else { throw Error.unexpectedCharacter }
