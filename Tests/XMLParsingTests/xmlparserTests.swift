@@ -385,7 +385,7 @@ class XMLParserTests: XCTestCase {
         for _ in 0..<100 {
             let parser2 = XMLParser(data: xmlData2)
             parser2.delegate = delegate
-            parser2.parse()
+            _ = parser2.parse()
         }
         print(-startTime.timeIntervalSinceNow)
     }
@@ -440,5 +440,23 @@ class XMLParserTests: XCTestCase {
         try parser.parse(xmlData: xmlData)
 
     }
+    
+    static var allTests = [
+        ("testValidDeclaration", testValidDeclaration),
+        ("testNoDeclaration", testNoDeclaration),
+        ("testValidElements", testValidElements),
+        ("testInvalidElements", testInvalidElements),
+        ("testValidElementsWithAttributes", testValidElementsWithAttributes),
+        ("testElementStackDelegate", testElementStackDelegate),
+        ("testAttributesDelegate", testAttributesDelegate),
+        ("testCharacterDataDelegate", testCharacterDataDelegate),
+        ("testCommentDelegate", testCommentDelegate),
+        ("testEscapedCharacterDelegate", testEscapedCharacterDelegate),
+        ("testCharacterDataDelegate", testCharacterDataDelegate),
+        ("testSkipDTD", testSkipDTD),
+        ("testSkipProcessingInstructions", testSkipProcessingInstructions),
+        ("testCDATA", testCDATA),
+        ("testSpeed", testSpeed)
+    ]
 }
 
