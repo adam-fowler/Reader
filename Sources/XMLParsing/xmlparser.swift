@@ -150,7 +150,7 @@ public class SwiftXMLParser {
     func parseElement(_ elementParser: Parser) throws -> String? {
         var parser = elementParser
         let tag = try parseTag(&parser)
-        parser.read(while: \.isWhitespace)
+        parser.read(while: { $0.isWhitespace })
         
         delegate.didStartElement(self, elementName: tag.name, namespaceURI: nil, attributes: tag.attributes)
         
